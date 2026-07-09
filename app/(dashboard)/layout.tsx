@@ -9,6 +9,7 @@ import { useLiveFeed } from '@/lib/useLiveFeed';
 const NAV = [
   { href: '/overview', label: 'Overview', icon: '▦' },
   { href: '/devices', label: 'Devices', icon: '▤' },
+  { href: '/catalog', label: 'Catalog', icon: '☰' },
   { href: '/flows', label: 'USSD Flows', icon: '⑃' },
   { href: '/transactions', label: 'Transactions', icon: '⇄' },
 ];

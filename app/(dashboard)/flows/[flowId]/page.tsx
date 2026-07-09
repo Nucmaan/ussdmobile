@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, Flow, FlowStep, StepAction } from '@/lib/api';
+import { api, Flow, FlowStep, StepAction, CatalogTree } from '@/lib/api';
 
 const ACTIONS: { value: StepAction; label: string; needsValue: 'none' | 'text' | 'variable' | 'button' }[] = [
   { value: 'DIAL_USSD', label: 'Dial USSD code', needsValue: 'text' },
@@ -23,7 +23,30 @@ const emptyFlow: Flow = {
   variables: [],
   steps: [{ order: 1, action: 'WAIT_RESPONSE', value: '' }],
   active: true,
+  bundle: null,
 };
+
+/** Flatten the catalog tree into selectable bundle options for the dropdown. */
+interface BundleOption {
+  id: string;
+  label: string;
+  takenBy: string | null; // flowId already linked to this bundle, if any
+}
+function flattenBundles(tree: CatalogTree): BundleOption[] {
+  const out: BundleOption[] = [];
+  for (const c of tree) {
+    for (const p of c.packages) {
+      for (const b of p.bundles) {
+        out.push({
+          id: b._id,
+          label: `${c.name} / ${p.name} / ${b.name}`,
+          takenBy: b.flow?.flowId ?? null,
+        });
+      }
+    }
+  }
+  return out;
+}
 
 /** Derive the variable list from any {var} tokens and ENTER_VARIABLE steps. */
 function deriveVariables(steps: FlowStep[]): string[] {
@@ -43,10 +66,13 @@ export default function FlowBuilderPage() {
   const isNew = flowId === 'new';
 
   const [flow, setFlow] = useState<Flow>(emptyFlow);
+  const [bundleOptions, setBundleOptions] = useState<BundleOption[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    const { tree } = await api.getCatalogTree();
+    setBundleOptions(flattenBundles(tree));
     if (isNew) return;
     const { flow } = await api.getFlow(flowId);
     setFlow(flow);
@@ -158,6 +184,27 @@ export default function FlowBuilderPage() {
             value={flow.description}
             onChange={(e) => setFlow({ ...flow, description: e.target.value })}
           />
+        </div>
+        <div className="col-span-2">
+          <label className="label">Linked bundle (this flow buys)</label>
+          <select
+            className="select"
+            value={flow.bundle ?? ''}
+            onChange={(e) => setFlow({ ...flow, bundle: e.target.value || null })}
+          >
+            <option value="">— not linked —</option>
+            {bundleOptions.map((b) => {
+              const taken = b.takenBy && b.takenBy !== flow.flowId;
+              return (
+                <option key={b.id} value={b.id} disabled={!!taken}>
+                  {b.label}{taken ? ` (linked to ${b.takenBy})` : ''}
+                </option>
+              );
+            })}
+          </select>
+          <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            Pick which catalog bundle this flow purchases. Each bundle can be linked to only one flow.
+          </div>
         </div>
         <div className="col-span-2 flex items-center gap-2">
           <input

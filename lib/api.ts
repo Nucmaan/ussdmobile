@@ -69,8 +69,41 @@ export interface Flow {
   variables: string[];
   steps: FlowStep[];
   active: boolean;
+  bundle?: string | null;
   updatedAt?: string;
 }
+
+export interface Company {
+  _id: string;
+  name: string;
+  code: string;
+  description: string;
+  active: boolean;
+}
+
+export interface Package {
+  _id: string;
+  company: string;
+  name: string;
+  description: string;
+  active: boolean;
+}
+
+export interface Bundle {
+  _id: string;
+  package: string;
+  name: string;
+  price: number;
+  currency: string;
+  description: string;
+  validity: string;
+  active: boolean;
+  flow?: { flowId: string; name: string } | null;
+}
+
+export type CatalogTree = (Company & {
+  packages: (Package & { bundles: Bundle[] })[];
+})[];
 
 export interface DeviceSim {
   slot: number;
@@ -149,4 +182,27 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  // ---- Catalog ----
+  getCatalogTree: () => request<{ tree: CatalogTree }>('/api/catalog/tree'),
+
+  listCompanies: () => request<{ companies: Company[] }>('/api/catalog/companies'),
+  createCompany: (data: Partial<Company>) =>
+    request<{ company: Company }>('/api/catalog/companies', { method: 'POST', body: JSON.stringify(data) }),
+  updateCompany: (id: string, data: Partial<Company>) =>
+    request<{ company: Company }>(`/api/catalog/companies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCompany: (id: string) => request(`/api/catalog/companies/${id}`, { method: 'DELETE' }),
+
+  createPackage: (data: Partial<Package>) =>
+    request<{ package: Package }>('/api/catalog/packages', { method: 'POST', body: JSON.stringify(data) }),
+  updatePackage: (id: string, data: Partial<Package>) =>
+    request<{ package: Package }>(`/api/catalog/packages/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePackage: (id: string) => request(`/api/catalog/packages/${id}`, { method: 'DELETE' }),
+
+  listBundles: () => request<{ bundles: Bundle[] }>('/api/catalog/bundles'),
+  createBundle: (data: Partial<Bundle>) =>
+    request<{ bundle: Bundle }>('/api/catalog/bundles', { method: 'POST', body: JSON.stringify(data) }),
+  updateBundle: (id: string, data: Partial<Bundle>) =>
+    request<{ bundle: Bundle }>(`/api/catalog/bundles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBundle: (id: string) => request(`/api/catalog/bundles/${id}`, { method: 'DELETE' }),
 };

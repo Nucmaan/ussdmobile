@@ -29,8 +29,12 @@ export default function TransactionsPage() {
   );
 
   async function open(id: string) {
-    const { transaction } = await api.getTransaction(id);
-    setSelected(transaction);
+    try {
+      const { transaction } = await api.getTransaction(id);
+      setSelected(transaction);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not load transaction');
+    }
   }
 
   return (
@@ -120,16 +124,20 @@ function TxDrawer({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
         <div className="mb-4">
           <div className="label">Variables (sensitive redacted)</div>
           <div className="card p-3 text-xs mono">
-            {Object.entries(tx.variablesSafe).map(([k, v]) => (
-              <div key={k}>{k}: {v}</div>
-            ))}
+            {Object.entries(tx.variablesSafe ?? {}).length === 0 ? (
+              <span style={{ color: 'var(--muted)' }}>none</span>
+            ) : (
+              Object.entries(tx.variablesSafe ?? {}).map(([k, v]) => (
+                <div key={k}>{k}: {String(v)}</div>
+              ))
+            )}
           </div>
         </div>
 
         <div>
           <div className="label">Execution log</div>
           <div className="grid gap-1">
-            {tx.logs.map((l, i) => (
+            {(tx.logs ?? []).map((l, i) => (
               <div key={i} className="flex items-center gap-2 text-xs">
                 <span style={{ color: 'var(--muted)' }}>{new Date(l.at).toLocaleTimeString()}</span>
                 <StatusBadge status={l.status} />
