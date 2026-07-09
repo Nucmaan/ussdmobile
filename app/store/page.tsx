@@ -225,7 +225,9 @@ function Result({ order, onDone }: { order: PublicOrder; onDone: () => void }) {
       </div>
 
       {pending && <div className="text-xs mt-3" style={{ color: 'var(--muted)' }}>This updates automatically.</div>}
-      <button className="btn btn-primary w-full mt-4" onClick={onDone}>Buy another</button>
+      <button className="btn btn-primary w-full mt-4" onClick={onDone} disabled={pending}>
+        {pending ? 'Processing…' : 'Buy another'}
+      </button>
     </div>
   );
 }
