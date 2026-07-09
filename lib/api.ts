@@ -105,6 +105,16 @@ export type CatalogTree = (Company & {
   packages: (Package & { bundles: Bundle[] })[];
 })[];
 
+export interface GatewayUser {
+  id: string;
+  phone: string;
+  name: string;
+  active: boolean;
+  lastLoginAt: string | null;
+  deviceCount: number;
+  createdAt: string;
+}
+
 export interface WalletRow {
   companyId: string;
   companyName: string;
@@ -315,4 +325,14 @@ export const api = {
       `/api/finance/orders${qs ? `?${qs}` : ''}`,
     );
   },
+
+  // ---- Gateway users (operators) ----
+  listGatewayUsers: () => request<{ users: GatewayUser[] }>('/api/gateway-users'),
+  createGatewayUser: (data: { phone: string; password: string; name?: string }) =>
+    request<{ user: GatewayUser }>('/api/gateway-users', { method: 'POST', body: JSON.stringify(data) }),
+  updateGatewayUser: (id: string, data: { name?: string; active?: boolean }) =>
+    request<{ user: GatewayUser }>(`/api/gateway-users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  resetGatewayUserPassword: (id: string, password: string) =>
+    request(`/api/gateway-users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
+  deleteGatewayUser: (id: string) => request(`/api/gateway-users/${id}`, { method: 'DELETE' }),
 };

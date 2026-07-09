@@ -10,6 +10,7 @@ import { BRAND, BRAND_SHORT, BRAND_TAGLINE } from '@/lib/brand';
 const NAV = [
   { href: '/overview', label: 'Overview', icon: '◧' },
   { href: '/devices', label: 'Devices', icon: '▤' },
+  { href: '/gateway-users', label: 'Gateway Users', icon: '☺' },
   { href: '/catalog', label: 'Catalog', icon: '❏' },
   { href: '/wallets', label: 'Wallets & Orders', icon: '❖' },
   { href: '/flows', label: 'Pipelines', icon: '⑃' },
