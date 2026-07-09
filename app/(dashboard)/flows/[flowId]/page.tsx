@@ -4,15 +4,34 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, Flow, FlowStep, StepAction, CatalogTree } from '@/lib/api';
 
-const ACTIONS: { value: StepAction; label: string; needsValue: 'none' | 'text' | 'variable' | 'button' }[] = [
-  { value: 'DIAL_USSD', label: 'Dial USSD code', needsValue: 'text' },
-  { value: 'WAIT_RESPONSE', label: 'Wait for response', needsValue: 'none' },
-  { value: 'ENTER_TEXT', label: 'Enter fixed text', needsValue: 'text' },
-  { value: 'ENTER_VARIABLE', label: 'Enter variable', needsValue: 'variable' },
-  { value: 'CLICK_BUTTON', label: 'Click button', needsValue: 'button' },
-  { value: 'READ_RESPONSE', label: 'Read response', needsValue: 'none' },
-  { value: 'FINISH', label: 'Finish', needsValue: 'none' },
+// The variable name the storefront fills with the customer's number.
+const CUSTOMER_VAR = 'phone';
+
+// UI step "kinds". CUSTOMER_NUMBER is a friendly wrapper that stores an
+// ENTER_VARIABLE step with value `phone` — so admins never type a magic word.
+type StepKind = StepAction | 'CUSTOMER_NUMBER';
+const STEP_KINDS: { kind: StepKind; label: string; input: 'none' | 'text' | 'variable' | 'button' | 'customer' }[] = [
+  { kind: 'DIAL_USSD', label: 'Dial USSD code', input: 'text' },
+  { kind: 'WAIT_RESPONSE', label: 'Wait for response', input: 'none' },
+  { kind: 'ENTER_TEXT', label: 'Enter fixed text', input: 'text' },
+  { kind: 'CUSTOMER_NUMBER', label: '★ Enter customer number', input: 'customer' },
+  { kind: 'ENTER_VARIABLE', label: 'Enter variable (advanced)', input: 'variable' },
+  { kind: 'CLICK_BUTTON', label: 'Click button', input: 'button' },
+  { kind: 'READ_RESPONSE', label: 'Read response', input: 'none' },
+  { kind: 'FINISH', label: 'Finish', input: 'none' },
 ];
+
+/** Map a stored step to its UI kind. */
+function kindOf(step: FlowStep): StepKind {
+  if (step.action === 'ENTER_VARIABLE' && step.value === CUSTOMER_VAR) return 'CUSTOMER_NUMBER';
+  return step.action;
+}
+
+/** Turn a chosen UI kind into the concrete stored step fields. */
+function stepFromKind(kind: StepKind): Partial<FlowStep> {
+  if (kind === 'CUSTOMER_NUMBER') return { action: 'ENTER_VARIABLE', value: CUSTOMER_VAR };
+  return { action: kind as StepAction, value: '' };
+}
 
 const emptyFlow: Flow = {
   flowId: '',
@@ -224,41 +243,48 @@ export default function FlowBuilderPage() {
 
         <div className="grid gap-2">
           {flow.steps.map((step, idx) => {
-            const meta = ACTIONS.find((a) => a.value === step.action)!;
+            const kind = kindOf(step);
+            const meta = STEP_KINDS.find((a) => a.kind === kind)!;
+            const isCustomer = kind === 'CUSTOMER_NUMBER';
             return (
               <div
                 key={idx}
                 className="flex items-center gap-2 p-2 rounded"
-                style={{ background: 'var(--panel-2)', border: '1px solid var(--border)' }}
+                style={{
+                  background: isCustomer ? 'rgba(91,140,255,0.08)' : 'var(--panel-2)',
+                  border: `1px solid ${isCustomer ? 'rgba(91,140,255,0.4)' : 'var(--border)'}`,
+                }}
               >
-                <div
-                  className="mono text-xs w-6 text-center shrink-0"
-                  style={{ color: 'var(--muted)' }}
-                >
+                <div className="mono text-xs w-6 text-center shrink-0" style={{ color: 'var(--muted)' }}>
                   {idx + 1}
                 </div>
                 <select
                   className="select"
-                  style={{ maxWidth: 190 }}
-                  value={step.action}
-                  onChange={(e) => setStep(idx, { action: e.target.value as StepAction, value: '' })}
+                  style={{ maxWidth: 210 }}
+                  value={kind}
+                  onChange={(e) => setStep(idx, stepFromKind(e.target.value as StepKind))}
                 >
-                  {ACTIONS.map((a) => (
-                    <option key={a.value} value={a.value}>{a.label}</option>
+                  {STEP_KINDS.map((a) => (
+                    <option key={a.kind} value={a.kind}>{a.label}</option>
                   ))}
                 </select>
 
-                {meta.needsValue === 'none' ? (
+                {meta.input === 'none' ? (
                   <div className="flex-1 text-xs" style={{ color: 'var(--muted)' }}>no input</div>
+                ) : meta.input === 'customer' ? (
+                  <div className="flex-1 text-xs flex items-center gap-2" style={{ color: '#93c5fd' }}>
+                    <span className="badge badge-blue">auto</span>
+                    Uses the number the customer enters in the store
+                  </div>
                 ) : (
                   <input
                     className="input mono flex-1"
                     value={step.value}
                     placeholder={
-                      meta.needsValue === 'text'
+                      meta.input === 'text'
                         ? step.action === 'DIAL_USSD' ? '*300#' : '2'
-                        : meta.needsValue === 'variable'
-                        ? 'phone'
+                        : meta.input === 'variable'
+                        ? 'variable name'
                         : 'SEND / OK / CONTINUE'
                     }
                     onChange={(e) => setStep(idx, { value: e.target.value })}
@@ -274,6 +300,8 @@ export default function FlowBuilderPage() {
             );
           })}
         </div>
+
+        <FlowWarnings flow={flow} />
 
         {flow.variables.length > 0 && (
           <div className="mt-4 text-xs" style={{ color: 'var(--muted)' }}>
@@ -291,6 +319,45 @@ export default function FlowBuilderPage() {
           {saving ? 'Saving…' : 'Save flow'}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Guardrails so a sellable flow can't quietly ship the wrong recipient. */
+function FlowWarnings({ flow }: { flow: Flow }) {
+  const hasCustomerStep = flow.steps.some(
+    (s) => s.action === 'ENTER_VARIABLE' && s.value === CUSTOMER_VAR,
+  );
+  // A fixed-text step that looks like a phone number is almost certainly a
+  // recipient hardcoded by mistake.
+  const hardcodedNumbers = flow.steps
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => s.action === 'ENTER_TEXT' && /^\d{7,}$/.test(s.value.trim()));
+
+  const warnings: string[] = [];
+  if (flow.bundle && !hasCustomerStep) {
+    warnings.push(
+      "This flow is linked to a bundle but has no “Enter customer number” step — customers' numbers won't be delivered. Add one where the recipient should go.",
+    );
+  }
+  for (const { s, i } of hardcodedNumbers) {
+    warnings.push(
+      `Step ${i + 1} enters a fixed number (${s.value}). If that is the customer's number, switch it to “Enter customer number” so each buyer's own number is used.`,
+    );
+  }
+
+  if (warnings.length === 0) return null;
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      {warnings.map((w, i) => (
+        <div
+          key={i}
+          className="text-xs p-3 rounded"
+          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)', color: '#fcd34d' }}
+        >
+          ⚠ {w}
+        </div>
+      ))}
     </div>
   );
 }

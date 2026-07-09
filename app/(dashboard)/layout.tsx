@@ -11,6 +11,7 @@ const NAV = [
   { href: '/overview', label: 'Overview', icon: '◧' },
   { href: '/devices', label: 'Devices', icon: '▤' },
   { href: '/catalog', label: 'Catalog', icon: '❏' },
+  { href: '/wallets', label: 'Wallets & Orders', icon: '❖' },
   { href: '/flows', label: 'Pipelines', icon: '⑃' },
   { href: '/transactions', label: 'Transactions', icon: '⇄' },
 ];

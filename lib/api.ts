@@ -105,6 +105,39 @@ export type CatalogTree = (Company & {
   packages: (Package & { bundles: Bundle[] })[];
 })[];
 
+export interface WalletRow {
+  companyId: string;
+  companyName: string;
+  balance: number;
+  currency: string;
+}
+
+export interface LedgerEntry {
+  _id: string;
+  type: 'TOPUP' | 'DEBIT' | 'REFUND';
+  amount: number;
+  balanceAfter: number;
+  orderId: string;
+  note: string;
+  createdAt: string;
+}
+
+export interface Order {
+  orderId: string;
+  recipientPhone: string;
+  companyName: string;
+  packageName: string;
+  bundleName: string;
+  price: number;
+  currency: string;
+  status: string;
+  message: string;
+  transactionId: string;
+  deviceId: string;
+  simSlot: number;
+  createdAt: string;
+}
+
 export interface DeviceSim {
   slot: number;
   carrier: string;
@@ -143,6 +176,64 @@ export interface Transaction {
   createdAt: string;
   logs: TxLog[];
 }
+
+// ---- Public storefront (no auth token) ----
+export interface PublicBundle {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  description: string;
+  validity: string;
+}
+export interface PublicPackage {
+  id: string;
+  name: string;
+  bundles: PublicBundle[];
+}
+export interface PublicCompany {
+  id: string;
+  name: string;
+  code: string;
+  packages: PublicPackage[];
+}
+export interface PublicOrderResult {
+  orderId: string;
+  status: string;
+  message: string;
+}
+export interface PublicOrder {
+  orderId: string;
+  status: string;
+  message: string;
+  bundleName: string;
+  companyName: string;
+  price: number;
+  currency: string;
+  recipientPhone: string;
+  createdAt: string;
+}
+
+async function publicRequest<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers ?? {}) },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, body.error ?? res.statusText, body.details);
+  return body as T;
+}
+
+export const publicApi = {
+  catalog: () => publicRequest<{ catalog: PublicCompany[] }>('/api/public/catalog'),
+  order: (bundleId: string, phone: string) =>
+    publicRequest<PublicOrderResult>('/api/public/order', {
+      method: 'POST',
+      body: JSON.stringify({ bundleId, phone }),
+    }),
+  orderStatus: (orderId: string) =>
+    publicRequest<{ order: PublicOrder }>(`/api/public/order/${orderId}`),
+};
 
 // ---- Endpoints ----
 export const api = {
@@ -208,4 +299,20 @@ export const api = {
   updateBundle: (id: string, data: Partial<Bundle>) =>
     request<{ bundle: Bundle }>(`/api/catalog/bundles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteBundle: (id: string) => request(`/api/catalog/bundles/${id}`, { method: 'DELETE' }),
+
+  // ---- Finance (admin) ----
+  listWallets: () => request<{ wallets: WalletRow[] }>('/api/finance/wallets'),
+  topupWallet: (companyId: string, amount: number, note?: string) =>
+    request<{ balance: number; currency: string }>(`/api/finance/wallets/${companyId}/topup`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, note }),
+    }),
+  walletLedger: (companyId: string) =>
+    request<{ entries: LedgerEntry[] }>(`/api/finance/wallets/${companyId}/ledger`),
+  listOrders: (params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request<{ orders: Order[]; total: number; page: number; limit: number }>(
+      `/api/finance/orders${qs ? `?${qs}` : ''}`,
+    );
+  },
 };
