@@ -1,34 +1,75 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { api, Transaction } from '@/lib/api';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { api, Transaction, Device, Flow } from '@/lib/api';
 import { useLiveFeed, LiveEvent } from '@/lib/useLiveFeed';
-import { StatusBadge, timeAgo } from '@/lib/ui';
+import { StatusBadge, timeAgo, Pagination, useDebounced } from '@/lib/ui';
+
+const STATUS_OPTIONS = ['', 'SUCCESS', 'FAILED', 'TIMEOUT', 'QUEUED', 'DISPATCHED', 'RECEIVED', 'DIALING_USSD', 'ENTERING_INPUT'];
+const PAGE_SIZE = 25;
 
 export default function TransactionsPage() {
   const [txs, setTxs] = useState<Transaction[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  // Filters
+  const [status, setStatus] = useState('');
+  const [deviceId, setDeviceId] = useState('');
+  const [flowId, setFlowId] = useState('');
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounced(search, 350);
+
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [flows, setFlows] = useState<Flow[]>([]);
   const [selected, setSelected] = useState<Transaction | null>(null);
 
-  const load = useCallback(async () => {
-    const { transactions } = await api.listTransactions({ limit: '200' });
-    setTxs(transactions);
+  // Load filter option lists once.
+  useEffect(() => {
+    api.listDevices().then((d) => setDevices(d.devices)).catch(() => {});
+    api.listFlows().then((f) => setFlows(f.flows)).catch(() => {});
   }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = { page: String(page), limit: String(PAGE_SIZE) };
+      if (status) params.status = status;
+      if (deviceId) params.deviceId = deviceId;
+      if (flowId) params.flowId = flowId;
+      if (debouncedSearch) params.q = debouncedSearch;
+      const res = await api.listTransactions(params);
+      setTxs(res.transactions);
+      setTotal(res.total);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, status, deviceId, flowId, debouncedSearch]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Live updates: refresh list on any tx event.
+  // Reset to page 1 whenever a filter changes.
+  useEffect(() => {
+    setPage(1);
+  }, [status, deviceId, flowId, debouncedSearch]);
+
+  // Debounced live refresh so a burst of events triggers at most one reload.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useLiveFeed(
     useCallback(
       (e: LiveEvent) => {
-        if (e.type === 'TX_UPDATE' || e.type === 'TX_RESULT') load();
+        if (e.type !== 'TX_UPDATE' && e.type !== 'TX_RESULT') return;
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => load(), 800);
       },
       [load],
     ),
   );
 
-  async function open(id: string) {
+  async function openTx(id: string) {
     try {
       const { transaction } = await api.getTransaction(id);
       setSelected(transaction);
@@ -37,43 +78,84 @@ export default function TransactionsPage() {
     }
   }
 
+  function resetFilters() {
+    setStatus('');
+    setDeviceId('');
+    setFlowId('');
+    setSearch('');
+  }
+
+  const hasFilters = status || deviceId || flowId || search;
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-semibold">Transactions</h1>
-        <button className="btn" onClick={load}>↻ Refresh</button>
+      {/* Filter bar */}
+      <div className="card p-3 mb-4 flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[180px]">
+          <label className="label">Search transaction ID</label>
+          <input className="input" placeholder="TXN_…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div className="min-w-[150px]">
+          <label className="label">Status</label>
+          <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
+            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s || 'All statuses'}</option>)}
+          </select>
+        </div>
+        <div className="min-w-[160px]">
+          <label className="label">Device</label>
+          <select className="select" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
+            <option value="">All devices</option>
+            {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.name || d.deviceId}</option>)}
+          </select>
+        </div>
+        <div className="min-w-[160px]">
+          <label className="label">Flow</label>
+          <select className="select" value={flowId} onChange={(e) => setFlowId(e.target.value)}>
+            <option value="">All flows</option>
+            {flows.map((f) => <option key={f.flowId} value={f.flowId}>{f.name}</option>)}
+          </select>
+        </div>
+        {hasFilters && <button className="btn" onClick={resetFilters}>Clear</button>}
+        <button className="btn btn-primary" onClick={load} disabled={loading}>
+          {loading ? 'Refreshing…' : '↻ Refresh'}
+        </button>
       </div>
 
-      <div className="card overflow-x-auto">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Transaction</th>
-              <th>Flow</th>
-              <th>Device</th>
-              <th>SIM</th>
-              <th>Status</th>
-              <th>Duration</th>
-              <th>When</th>
-            </tr>
-          </thead>
-          <tbody>
-            {txs.map((t) => (
-              <tr key={t.transactionId} style={{ cursor: 'pointer' }} onClick={() => open(t.transactionId)}>
-                <td className="mono">{t.transactionId}</td>
-                <td>{t.flowId}</td>
-                <td className="mono text-xs">{t.deviceId}</td>
-                <td>SIM {t.simSlot}</td>
-                <td><StatusBadge status={t.status} /></td>
-                <td>{t.durationMs ? `${(t.durationMs / 1000).toFixed(1)}s` : '—'}</td>
-                <td style={{ color: 'var(--muted)' }}>{timeAgo(t.createdAt)}</td>
+      <div className="card p-2">
+        <div className="overflow-x-auto" style={{ opacity: loading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Transaction</th>
+                <th>Flow</th>
+                <th>Device</th>
+                <th>SIM</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>When</th>
               </tr>
-            ))}
-            {txs.length === 0 && (
-              <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>No transactions yet.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {txs.map((t) => (
+                <tr key={t.transactionId} style={{ cursor: 'pointer' }} onClick={() => openTx(t.transactionId)}>
+                  <td className="mono">{t.transactionId}</td>
+                  <td>{t.flowId}</td>
+                  <td className="mono text-xs">{t.deviceId}</td>
+                  <td>SIM {t.simSlot}</td>
+                  <td><StatusBadge status={t.status} /></td>
+                  <td>{t.durationMs ? `${(t.durationMs / 1000).toFixed(1)}s` : '—'}</td>
+                  <td style={{ color: 'var(--muted)' }}>{timeAgo(t.createdAt)}</td>
+                </tr>
+              ))}
+              {txs.length === 0 && !loading && (
+                <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>No transactions match these filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-2">
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
+        </div>
       </div>
 
       {selected && <TxDrawer tx={selected} onClose={() => setSelected(null)} />}
@@ -83,11 +165,7 @@ export default function TransactionsPage() {
 
 function TxDrawer({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
   return (
-    <div
-      className="fixed inset-0 flex justify-end"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 flex justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
       <div
         className="h-full w-full max-w-md p-6 overflow-y-auto"
         style={{ background: 'var(--panel)', borderLeft: '1px solid var(--border)' }}

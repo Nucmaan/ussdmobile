@@ -12,9 +12,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+import { BRAND, BRAND_TAGLINE } from "@/lib/brand";
+
 export const metadata: Metadata = {
-  title: "USSD Gateway — Admin",
-  description: "Control panel for the USSD Gateway Platform",
+  title: `${BRAND} — Admin`,
+  description: `${BRAND} · ${BRAND_TAGLINE}`,
 };
 
 export default function RootLayout({

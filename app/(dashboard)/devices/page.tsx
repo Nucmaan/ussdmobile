@@ -1,20 +1,33 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { api, Device, Flow } from '@/lib/api';
 import { useLiveFeed, LiveEvent } from '@/lib/useLiveFeed';
-import { StatusBadge, timeAgo } from '@/lib/ui';
+import { StatusBadge, timeAgo, Pagination, useDebounced } from '@/lib/ui';
+
+const PAGE_SIZE = 10;
 
 export default function DevicesPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [runFor, setRunFor] = useState<Device | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | 'online' | 'offline' | 'disabled'>('');
+  const [page, setPage] = useState(1);
+  const debouncedSearch = useDebounced(search, 300);
 
   const load = useCallback(async () => {
-    const [d, f] = await Promise.all([api.listDevices(), api.listFlows()]);
-    setDevices(d.devices);
-    setFlows(f.flows);
+    setLoading(true);
+    try {
+      const [d, f] = await Promise.all([api.listDevices(), api.listFlows()]);
+      setDevices(d.devices);
+      setFlows(f.flows);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -30,6 +43,26 @@ export default function DevicesPage() {
     ),
   );
 
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    return devices.filter((d) => {
+      if (statusFilter && d.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        (d.name ?? '').toLowerCase().includes(q) ||
+        d.deviceId.toLowerCase().includes(q) ||
+        (d.model ?? '').toLowerCase().includes(q) ||
+        d.sims.some((s) => (s.number ?? '').includes(q))
+      );
+    });
+  }, [devices, debouncedSearch, statusFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter]);
+
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   async function act(fn: () => Promise<unknown>) {
     setError('');
     try {
@@ -42,14 +75,27 @@ export default function DevicesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-semibold">Devices</h1>
-        <button className="btn" onClick={load}>↻ Refresh</button>
+      <div className="card p-3 mb-4 flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label className="label">Search</label>
+          <input className="input" placeholder="Name, device ID, model, or SIM number" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div className="min-w-[150px]">
+          <label className="label">Status</label>
+          <select className="select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
+            <option value="">All</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+            <option value="disabled">Disabled</option>
+          </select>
+        </div>
+        <div className="text-xs" style={{ color: 'var(--muted)' }}>{filtered.length} devices</div>
+        <button className="btn btn-primary" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : '↻ Refresh'}</button>
       </div>
 
       {error && <div className="badge badge-red mb-4">{error}</div>}
 
-      <div className="card overflow-x-auto">
+      <div className="card overflow-x-auto" style={{ opacity: loading ? 0.6 : 1, transition: 'opacity 0.15s' }}>
         <table className="table">
           <thead>
             <tr>
@@ -64,7 +110,7 @@ export default function DevicesPage() {
             </tr>
           </thead>
           <tbody>
-            {devices.map((d) => {
+            {paged.map((d) => {
               const sim1 = d.sims.find((s) => s.slot === 1);
               const sim2 = d.sims.find((s) => s.slot === 2);
               return (
@@ -96,25 +142,39 @@ export default function DevicesPage() {
                           Enable
                         </button>
                       ) : (
-                        <button className="btn btn-danger" onClick={() => act(() => api.disableDevice(d.deviceId))}>
+                        <button className="btn" onClick={() => act(() => api.disableDevice(d.deviceId))}>
                           Disable
                         </button>
                       )}
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => {
+                          if (confirm(`Delete device "${d.name || d.deviceId}"? This removes it from the panel. If the phone is still running it will be disconnected; it can re-register later.`)) {
+                            act(() => api.deleteDevice(d.deviceId));
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
               );
             })}
-            {devices.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={8} style={{ color: 'var(--muted)' }}>
-                  No devices registered yet. Register the Android gateway to see it here.
+                  {devices.length === 0
+                    ? 'No devices registered yet. Register the Android gateway to see it here.'
+                    : 'No devices match your filters.'}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
 
       {runFor && (
         <RunModal device={runFor} flows={flows} onClose={() => setRunFor(null)} />

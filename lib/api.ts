@@ -156,6 +156,7 @@ export const api = {
   disableDevice: (id: string) => request(`/api/devices/${id}/disable`, { method: 'POST' }),
   enableDevice: (id: string) => request(`/api/devices/${id}/enable`, { method: 'POST' }),
   restartDevice: (id: string) => request(`/api/devices/${id}/restart`, { method: 'POST' }),
+  deleteDevice: (id: string) => request(`/api/devices/${id}`, { method: 'DELETE' }),
 
   listFlows: () => request<{ flows: Flow[] }>('/api/flows'),
   getFlow: (id: string) => request<{ flow: Flow }>(`/api/flows/${id}`),
@@ -167,7 +168,9 @@ export const api = {
 
   listTransactions: (params: Record<string, string> = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request<{ transactions: Transaction[] }>(`/api/transactions${qs ? `?${qs}` : ''}`);
+    return request<{ transactions: Transaction[]; total: number; page: number; limit: number }>(
+      `/api/transactions${qs ? `?${qs}` : ''}`,
+    );
   },
   getTransaction: (id: string) =>
     request<{ transaction: Transaction }>(`/api/transactions/${id}`),

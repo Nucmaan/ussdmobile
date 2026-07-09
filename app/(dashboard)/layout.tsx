@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { getToken, clearToken } from '@/lib/api';
 import { useLiveFeed } from '@/lib/useLiveFeed';
+import { BRAND, BRAND_SHORT, BRAND_TAGLINE } from '@/lib/brand';
 
 const NAV = [
-  { href: '/overview', label: 'Overview', icon: '▦' },
+  { href: '/overview', label: 'Overview', icon: '◧' },
   { href: '/devices', label: 'Devices', icon: '▤' },
-  { href: '/catalog', label: 'Catalog', icon: '☰' },
-  { href: '/flows', label: 'USSD Flows', icon: '⑃' },
+  { href: '/catalog', label: 'Catalog', icon: '❏' },
+  { href: '/flows', label: 'Pipelines', icon: '⑃' },
   { href: '/transactions', label: 'Transactions', icon: '⇄' },
 ];
 
@@ -32,54 +33,71 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.replace('/login');
   }
 
+  const current = NAV.find((n) => pathname.startsWith(n.href));
+
   return (
     <div className="flex flex-1 min-h-screen">
+      {/* Sidebar */}
       <aside
-        className="w-60 shrink-0 flex flex-col p-4 gap-1"
+        className="w-64 shrink-0 flex flex-col p-4 gap-2"
         style={{ borderRight: '1px solid var(--border)', background: 'var(--panel)' }}
       >
-        <div className="px-2 py-3 mb-2">
-          <div className="font-semibold">USSD Gateway</div>
-          <div className="text-xs flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: 999,
-                background: connected ? 'var(--accent-2)' : 'var(--muted)',
-                display: 'inline-block',
-              }}
-            />
-            {connected ? 'Live' : 'Reconnecting…'}
+        <div className="flex items-center gap-3 px-1 py-2 mb-3">
+          <div className="brand-mark">{BRAND_SHORT.slice(0, 1)}</div>
+          <div>
+            <div className="font-semibold leading-tight">{BRAND}</div>
+            <div className="text-xs" style={{ color: 'var(--muted)' }}>{BRAND_TAGLINE}</div>
           </div>
         </div>
 
-        {NAV.map((item) => {
-          const active = pathname.startsWith(item.href);
-          return (
+        <nav className="flex flex-col gap-1">
+          {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="btn justify-start"
-              style={{
-                background: active ? 'var(--panel-2)' : 'transparent',
-                borderColor: active ? 'var(--border)' : 'transparent',
-              }}
+              className={`nav-item ${pathname.startsWith(item.href) ? 'active' : ''}`}
             >
-              <span style={{ width: 18, textAlign: 'center' }}>{item.icon}</span>
+              <span className="nav-icon">{item.icon}</span>
               {item.label}
             </Link>
-          );
-        })}
+          ))}
+        </nav>
 
-        <div className="mt-auto">
-          <button className="btn justify-start w-full" onClick={logout}>
-            <span style={{ width: 18, textAlign: 'center' }}>⎋</span> Sign out
+        <div className="mt-auto flex flex-col gap-3">
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+            style={{ background: 'var(--panel-2)', border: '1px solid var(--border)', color: 'var(--muted)' }}
+          >
+            <span
+              className="dot"
+              style={{ background: connected ? 'var(--good)' : 'var(--muted-2)' }}
+            />
+            {connected ? 'Live · connected' : 'Reconnecting…'}
+          </div>
+          <button className="btn btn-ghost justify-start" onClick={logout}>
+            <span className="nav-icon">⎋</span> Sign out
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 p-6 overflow-x-auto">{children}</main>
+      {/* Main */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header
+          className="flex items-center justify-between px-6 py-4"
+          style={{ borderBottom: '1px solid var(--border)', background: 'rgba(13,18,32,0.6)', backdropFilter: 'blur(6px)' }}
+        >
+          <div>
+            <div className="text-lg font-semibold">{current?.label ?? 'Dashboard'}</div>
+            <div className="text-xs" style={{ color: 'var(--muted)' }}>{BRAND}</div>
+          </div>
+          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)' }}>
+            <span className="dot" style={{ background: connected ? 'var(--good)' : 'var(--warn)' }} />
+            {connected ? 'Realtime feed active' : 'Offline'}
+          </div>
+        </header>
+
+        <main className="flex-1 p-6 overflow-x-auto">{children}</main>
+      </div>
     </div>
   );
 }

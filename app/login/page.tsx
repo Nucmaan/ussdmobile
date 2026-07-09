@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, setToken } from '@/lib/api';
+import { BRAND, BRAND_SHORT, BRAND_TAGLINE } from '@/lib/brand';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,40 +29,52 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center p-6">
-      <form onSubmit={onSubmit} className="card w-full max-w-sm p-8">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold">USSD Gateway</h1>
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>
-            Admin control panel
-          </p>
+      <div className="w-full max-w-sm">
+        <div className="flex items-center gap-3 mb-6 justify-center">
+          <div className="brand-mark" style={{ width: 44, height: 44, fontSize: '1.2rem' }}>
+            {BRAND_SHORT.slice(0, 1)}
+          </div>
+          <div>
+            <div className="text-lg font-semibold leading-tight">{BRAND}</div>
+            <div className="text-xs" style={{ color: 'var(--muted)' }}>{BRAND_TAGLINE}</div>
+          </div>
         </div>
 
-        <label className="label">Email</label>
-        <input
-          className="input mb-4"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="username"
-        />
+        <form onSubmit={onSubmit} className="card p-8">
+          <div className="mb-5">
+            <h1 className="text-lg font-semibold">Sign in</h1>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>Access your control panel</p>
+          </div>
 
-        <label className="label">Password</label>
-        <input
-          className="input mb-5"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
+          <label className="label">Email</label>
+          <input
+            className="input mb-4"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="username"
+          />
 
-        {error && (
-          <div className="badge badge-red mb-4 w-full justify-center py-2">{error}</div>
-        )}
+          <label className="label">Password</label>
+          <input
+            className="input mb-5"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
 
-        <button className="btn btn-primary w-full justify-center" disabled={loading}>
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+          {error && <div className="badge badge-red mb-4 w-full justify-center py-2">{error}</div>}
+
+          <button className="btn btn-primary w-full" disabled={loading}>
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+
+        <div className="text-center text-xs mt-4" style={{ color: 'var(--muted-2)' }}>
+          {BRAND} · secure admin access
+        </div>
+      </div>
     </div>
   );
 }
