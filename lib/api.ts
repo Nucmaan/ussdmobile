@@ -322,8 +322,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ amount, note }),
     }),
-  walletLedger: (companyId: string) =>
-    request<{ entries: LedgerEntry[] }>(`/api/finance/wallets/${companyId}/ledger`),
+  walletLedger: (companyId: string, params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request<{ entries: LedgerEntry[]; total: number; page: number; limit: number; companyName: string }>(
+      `/api/finance/wallets/${companyId}/ledger${qs ? `?${qs}` : ''}`,
+    );
+  },
   listOrders: (params: Record<string, string> = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request<{ orders: Order[]; total: number; page: number; limit: number }>(

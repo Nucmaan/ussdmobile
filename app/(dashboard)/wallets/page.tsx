@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { api, WalletRow, Order, LedgerEntry } from '@/lib/api';
+import Link from 'next/link';
+import { api, WalletRow, Order } from '@/lib/api';
 import { useLiveFeed, LiveEvent } from '@/lib/useLiveFeed';
 import { StatusBadge, timeAgo, Pagination, useDebounced } from '@/lib/ui';
 
@@ -11,7 +12,6 @@ const ORDER_STATUSES = ['', 'DISPATCHED', 'SUCCESS', 'REFUNDED', 'INSUFFICIENT_F
 export default function WalletsPage() {
   const [wallets, setWallets] = useState<WalletRow[]>([]);
   const [topupFor, setTopupFor] = useState<WalletRow | null>(null);
-  const [ledgerFor, setLedgerFor] = useState<WalletRow | null>(null);
 
   // Orders
   const [orders, setOrders] = useState<Order[]>([]);
@@ -100,7 +100,7 @@ export default function WalletsPage() {
               </div>
               <div className="flex gap-2 mt-3">
                 <button className="btn btn-primary px-2 py-1 text-xs flex-1" onClick={() => setTopupFor(w)}>+ Top up</button>
-                <button className="btn px-2 py-1 text-xs" onClick={() => setLedgerFor(w)}>History</button>
+                <Link href={`/wallets/${w.companyId}/history`} className="btn px-2 py-1 text-xs">History</Link>
               </div>
             </div>
           ))}
@@ -191,7 +191,6 @@ export default function WalletsPage() {
           }}
         />
       )}
-      {ledgerFor && <LedgerModal wallet={ledgerFor} onClose={() => setLedgerFor(null)} />}
     </div>
   );
 }
@@ -230,39 +229,6 @@ function TopupModal({ wallet, onClose, onDone }: { wallet: WalletRow; onClose: (
       <div className="flex justify-end gap-2">
         <button className="btn" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? 'Adding…' : 'Add funds'}</button>
-      </div>
-    </Modal>
-  );
-}
-
-function LedgerModal({ wallet, onClose }: { wallet: WalletRow; onClose: () => void }) {
-  const [entries, setEntries] = useState<LedgerEntry[]>([]);
-  useEffect(() => {
-    api.walletLedger(wallet.companyId).then((r) => setEntries(r.entries)).catch(() => {});
-  }, [wallet.companyId]);
-
-  const color = (t: string) => (t === 'TOPUP' ? 'var(--good)' : t === 'REFUND' ? 'var(--info)' : 'var(--danger)');
-  const sign = (t: string) => (t === 'DEBIT' ? '−' : '+');
-
-  return (
-    <Modal title={`${wallet.companyName} — history`} onClose={onClose}>
-      <div className="flex flex-col gap-1 max-h-96 overflow-y-auto">
-        {entries.map((e) => (
-          <div key={e._id} className="flex items-center justify-between py-2 text-sm" style={{ borderBottom: '1px solid var(--border)' }}>
-            <div>
-              <div style={{ color: color(e.type) }}>{e.type}</div>
-              <div className="text-xs" style={{ color: 'var(--muted)' }}>{timeAgo(e.createdAt)} {e.note && `· ${e.note}`}</div>
-            </div>
-            <div className="text-right">
-              <div style={{ color: color(e.type) }}>{sign(e.type)} {e.amount}</div>
-              <div className="text-xs" style={{ color: 'var(--muted)' }}>bal {e.balanceAfter}</div>
-            </div>
-          </div>
-        ))}
-        {entries.length === 0 && <div className="text-sm py-4 text-center" style={{ color: 'var(--muted)' }}>No history yet.</div>}
-      </div>
-      <div className="flex justify-end mt-4">
-        <button className="btn" onClick={onClose}>Close</button>
       </div>
     </Modal>
   );
