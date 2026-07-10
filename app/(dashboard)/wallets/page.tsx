@@ -20,6 +20,7 @@ export default function WalletsPage() {
   const [status, setStatus] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [retryingId, setRetryingId] = useState('');
   const debouncedPhone = useDebounced(phone, 350);
 
   const loadWallets = useCallback(async () => {
@@ -62,6 +63,23 @@ export default function WalletsPage() {
       [loadOrders, loadWallets],
     ),
   );
+
+  async function retryOrder(o: Order) {
+    if (!confirm(
+      `Retry order for ${o.recipientPhone} (${o.bundleName})?\n\nOnly do this after the customer confirmed they did NOT receive it. A successful retry will deduct your float again.`,
+    )) return;
+    setRetryingId(o.orderId);
+    try {
+      const r = await api.retryOrder(o.orderId);
+      alert(`Retry placed (${r.orderId}) — ${r.status}`);
+      await loadOrders();
+      await loadWallets();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Retry failed');
+    } finally {
+      setRetryingId('');
+    }
+  }
 
   const totalFloat = wallets.reduce((a, w) => a + w.balance, 0);
 
@@ -122,22 +140,37 @@ export default function WalletsPage() {
                   <th>Price</th>
                   <th>Status</th>
                   <th>When</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o) => (
-                  <tr key={o.orderId}>
-                    <td className="mono text-xs">{o.orderId}</td>
-                    <td className="mono">{o.recipientPhone}</td>
-                    <td>{o.companyName}</td>
-                    <td>{o.bundleName}</td>
-                    <td>{o.price ? `${o.currency} ${o.price}` : '—'}</td>
-                    <td><StatusBadge status={o.status} /></td>
-                    <td style={{ color: 'var(--muted)' }}>{timeAgo(o.createdAt)}</td>
-                  </tr>
-                ))}
+                {orders.map((o) => {
+                  const canRetry = !['SUCCESS', 'DISPATCHED', 'PENDING'].includes(o.status);
+                  return (
+                    <tr key={o.orderId}>
+                      <td className="mono text-xs">{o.orderId}</td>
+                      <td className="mono">{o.recipientPhone}</td>
+                      <td>{o.companyName}</td>
+                      <td>{o.bundleName}</td>
+                      <td>{o.price ? `${o.currency} ${o.price}` : '—'}</td>
+                      <td><StatusBadge status={o.status} /></td>
+                      <td style={{ color: 'var(--muted)' }}>{timeAgo(o.createdAt)}</td>
+                      <td>
+                        {canRetry && (
+                          <button
+                            className="btn btn-primary px-2 py-1 text-xs"
+                            disabled={retryingId === o.orderId}
+                            onClick={() => retryOrder(o)}
+                          >
+                            {retryingId === o.orderId ? '…' : '↻ Retry'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {orders.length === 0 && !loading && (
-                  <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>No orders yet.</td></tr>
+                  <tr><td colSpan={8} style={{ color: 'var(--muted)' }}>No orders yet.</td></tr>
                 )}
               </tbody>
             </table>

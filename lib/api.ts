@@ -275,6 +275,11 @@ export const api = {
   },
   getTransaction: (id: string) =>
     request<{ transaction: Transaction }>(`/api/transactions/${id}`),
+  retryTransaction: (id: string) =>
+    request<{ kind: string; transactionId?: string; orderId?: string; status: string; message?: string }>(
+      `/api/transactions/${id}/retry`,
+      { method: 'POST' },
+    ),
 
   executeUssd: (payload: {
     deviceId: string;
@@ -325,6 +330,10 @@ export const api = {
       `/api/finance/orders${qs ? `?${qs}` : ''}`,
     );
   },
+  retryOrder: (id: string) =>
+    request<{ orderId: string; status: string; message: string }>(`/api/finance/orders/${id}/retry`, {
+      method: 'POST',
+    }),
 
   // ---- Gateway users (operators) ----
   listGatewayUsers: () => request<{ users: GatewayUser[] }>('/api/gateway-users'),

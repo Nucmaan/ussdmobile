@@ -164,6 +164,23 @@ export default function TransactionsPage() {
 }
 
 function TxDrawer({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
+  const [retrying, setRetrying] = useState(false);
+  const canRetry = ['FAILED', 'TIMEOUT', 'CANCELLED'].includes(tx.status);
+
+  async function retry() {
+    if (!confirm('Retry this transaction? Only do this after confirming the customer did not receive it.')) return;
+    setRetrying(true);
+    try {
+      const r = await api.retryTransaction(tx.transactionId);
+      alert(r.kind === 'order' ? `Re-ordered (${r.orderId ?? ''}) — ${r.status}` : `Retry queued (${r.transactionId ?? ''})`);
+      onClose();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Retry failed');
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 flex justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
       <div
@@ -173,7 +190,14 @@ function TxDrawer({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="mono font-medium">{tx.transactionId}</div>
-          <button className="btn px-2" onClick={onClose}>✕</button>
+          <div className="flex gap-2">
+            {canRetry && (
+              <button className="btn btn-primary px-3" onClick={retry} disabled={retrying}>
+                {retrying ? 'Retrying…' : '↻ Retry'}
+              </button>
+            )}
+            <button className="btn px-2" onClick={onClose}>✕</button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-5 text-sm">
