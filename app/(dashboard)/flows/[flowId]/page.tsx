@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, Flow, FlowStep, StepAction, CatalogTree } from '@/lib/api';
+import { api, Flow, FlowStep, StepAction, CatalogTree, Device } from '@/lib/api';
 
 // The variable name the storefront fills with the customer's number.
 const CUSTOMER_VAR = 'phone';
@@ -43,6 +43,7 @@ const emptyFlow: Flow = {
   steps: [{ order: 1, action: 'WAIT_RESPONSE', value: '' }],
   active: true,
   bundle: null,
+  device: '',
 };
 
 /** Flatten the catalog tree into selectable bundle options for the dropdown. */
@@ -86,12 +87,14 @@ export default function FlowBuilderPage() {
 
   const [flow, setFlow] = useState<Flow>(emptyFlow);
   const [bundleOptions, setBundleOptions] = useState<BundleOption[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const { tree } = await api.getCatalogTree();
+    const [{ tree }, dev] = await Promise.all([api.getCatalogTree(), api.listDevices()]);
     setBundleOptions(flattenBundles(tree));
+    setDevices(dev.devices);
     if (isNew) return;
     const { flow } = await api.getFlow(flowId);
     setFlow(flow);
@@ -195,6 +198,25 @@ export default function FlowBuilderPage() {
             <option value={1}>SIM 1</option>
             <option value={2}>SIM 2</option>
           </select>
+        </div>
+        <div className="col-span-2">
+          <label className="label">Gateway device</label>
+          <select
+            className="select"
+            value={flow.device ?? ''}
+            onChange={(e) => setFlow({ ...flow, device: e.target.value })}
+          >
+            <option value="">— Any / auto (pick at run time · by carrier for store) —</option>
+            {devices.map((d) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {d.name || d.deviceId} ({d.status})
+              </option>
+            ))}
+          </select>
+          <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            Leave on Auto unless this flow must run on a specific phone. Store orders fall back to
+            another gateway on the same carrier if the chosen one is offline.
+          </div>
         </div>
         <div className="col-span-2">
           <label className="label">Description</label>

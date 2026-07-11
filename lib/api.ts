@@ -70,6 +70,7 @@ export interface Flow {
   steps: FlowStep[];
   active: boolean;
   bundle?: string | null;
+  device?: string;
   updatedAt?: string;
 }
 
