@@ -230,17 +230,25 @@ function RunModal({ device, flows, onClose }: { device: Device; flows: Flow[]; o
           <option value={2}>SIM 2</option>
         </select>
 
-        {flow?.variables.map((v) => (
-          <div key={v} className="mb-3">
-            <label className="label">{v}</label>
-            <input
-              className="input"
-              type={/pin|password|otp/i.test(v) ? 'password' : 'text'}
-              value={vars[v] ?? ''}
-              onChange={(e) => setVars((p) => ({ ...p, [v]: e.target.value }))}
-            />
+        {flow?.variables
+          .filter((v) => !(v === 'provider_price' && flow.bundle)) // bundle-linked: backend fills it
+          .map((v) => (
+            <div key={v} className="mb-3">
+              <label className="label">{v}</label>
+              <input
+                className="input"
+                type={/pin|password|otp/i.test(v) ? 'password' : 'text'}
+                value={vars[v] ?? ''}
+                onChange={(e) => setVars((p) => ({ ...p, [v]: e.target.value }))}
+              />
+            </div>
+          ))}
+        {!!flow?.bundle && flow.variables.includes('provider_price') && (
+          <div className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
+            <span className="badge badge-blue mr-1">auto</span>
+            provider_price is filled from the linked bundle&apos;s provider price
           </div>
-        ))}
+        )}
 
         {error && <div className="badge badge-red mb-3 w-full justify-center py-2">{error}</div>}
         {result && <div className="badge badge-green mb-3 w-full justify-center py-2">{result}</div>}
