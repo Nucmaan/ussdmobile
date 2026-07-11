@@ -61,6 +61,7 @@ export default function CatalogPage() {
               key={c._id}
               active={c._id === selCompany}
               title={c.name}
+              logo={c.logoUrl}
               subtitle={c.code || `${c.packages.length} packages`}
               inactive={!c.active}
               onClick={() => {
@@ -157,6 +158,7 @@ function Column({
 function Row({
   title,
   subtitle,
+  logo,
   active,
   inactive,
   onClick,
@@ -165,6 +167,7 @@ function Row({
 }: {
   title: string;
   subtitle: string;
+  logo?: string;
   active: boolean;
   inactive: boolean;
   onClick: () => void;
@@ -181,9 +184,21 @@ function Row({
       }}
       onClick={onClick}
     >
-      <div>
-        <div className="text-sm">{title}</div>
-        <div className="text-xs" style={{ color: 'var(--muted)' }}>{subtitle}</div>
+      <div className="flex items-center gap-2">
+        {!!logo && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={logo}
+            alt=""
+            className="rounded shrink-0"
+            style={{ height: 28, width: 28, objectFit: 'contain', background: 'var(--panel-2)' }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        )}
+        <div>
+          <div className="text-sm">{title}</div>
+          <div className="text-xs" style={{ color: 'var(--muted)' }}>{subtitle}</div>
+        </div>
       </div>
       <div className="flex gap-1">
         <button className="btn px-2 py-0.5 text-xs" onClick={(e) => { e.stopPropagation(); onEdit(); }}>✎</button>
@@ -215,6 +230,11 @@ function BundleCard({
           {bundle.price ? `${bundle.currency} ${bundle.price}` : 'free'}
         </div>
       </div>
+      {!!bundle.providerPrice && (
+        <div className="text-xs" style={{ color: 'var(--muted)' }}>
+          provider: {bundle.currency} {bundle.providerPrice}
+        </div>
+      )}
       {!!bundle.description && (
         <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{bundle.description}</div>
       )}
@@ -255,12 +275,13 @@ function EntityModal({
 }) {
   const [form, setForm] = useState<Record<string, string | number | boolean | undefined>>(() => {
     if (editing.kind === 'company')
-      return { name: editing.data?.name ?? '', code: editing.data?.code ?? '', description: editing.data?.description ?? '', active: editing.data?.active ?? true };
+      return { name: editing.data?.name ?? '', code: editing.data?.code ?? '', logoUrl: editing.data?.logoUrl ?? '', description: editing.data?.description ?? '', active: editing.data?.active ?? true };
     if (editing.kind === 'package')
       return { name: editing.data?.name ?? '', description: editing.data?.description ?? '', active: editing.data?.active ?? true };
     return {
       name: editing.data?.name ?? '',
       price: editing.data?.price ?? 0,
+      providerPrice: editing.data?.providerPrice ?? 0,
       currency: editing.data?.currency ?? 'USD',
       description: editing.data?.description ?? '',
       validity: editing.data?.validity ?? '',
@@ -286,7 +307,12 @@ function EntityModal({
         if (editing.data) await api.updatePackage(editing.data._id, payload);
         else await api.createPackage(payload);
       } else {
-        const payload = { ...form, package: editing.packageId, price: Number(form.price) } as Partial<Bundle>;
+        const payload = {
+          ...form,
+          package: editing.packageId,
+          price: Number(form.price),
+          providerPrice: Number(form.providerPrice),
+        } as Partial<Bundle>;
         if (editing.data) await api.updateBundle(editing.data._id, payload);
         else await api.createBundle(payload);
       }
@@ -309,14 +335,37 @@ function EntityModal({
         <>
           <label className="label">Code / short code (optional)</label>
           <input className="input mb-3 mono" value={String(form.code ?? '')} onChange={(e) => set('code', e.target.value)} placeholder="*888#" />
+
+          <label className="label">Logo URL (shown in the store)</label>
+          <input
+            className="input mb-2 mono"
+            value={String(form.logoUrl ?? '')}
+            onChange={(e) => set('logoUrl', e.target.value)}
+            placeholder="https://example.com/logo.png"
+          />
+          {!!form.logoUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={String(form.logoUrl)}
+              alt="Logo preview"
+              className="mb-3 rounded"
+              style={{ height: 40, width: 40, objectFit: 'contain', background: 'var(--panel-2)', border: '1px solid var(--border)' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+              onLoad={(e) => { (e.target as HTMLImageElement).style.opacity = '1'; }}
+            />
+          )}
         </>
       )}
 
       {editing.kind === 'bundle' && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label">Price</label>
+            <label className="label">App price (shown to clients)</label>
             <input className="input" type="number" value={String(form.price)} onChange={(e) => set('price', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Provider price (dialed / debited)</label>
+            <input className="input" type="number" value={String(form.providerPrice)} onChange={(e) => set('providerPrice', e.target.value)} />
           </div>
           <div>
             <label className="label">Currency</label>
@@ -404,17 +453,25 @@ function SellModal({ bundle, onClose }: { bundle: Bundle; onClose: () => void })
         <option value={2}>SIM 2</option>
       </select>
 
-      {flow?.variables.map((v) => (
-        <div key={v} className="mb-3">
-          <label className="label">{v}</label>
-          <input
-            className="input"
-            type={/pin|password|otp/i.test(v) ? 'password' : 'text'}
-            value={vars[v] ?? ''}
-            onChange={(e) => setVars((p) => ({ ...p, [v]: e.target.value }))}
-          />
+      {flow?.variables
+        .filter((v) => v !== 'provider_price') // auto-filled by the backend from the bundle
+        .map((v) => (
+          <div key={v} className="mb-3">
+            <label className="label">{v}</label>
+            <input
+              className="input"
+              type={/pin|password|otp/i.test(v) ? 'password' : 'text'}
+              value={vars[v] ?? ''}
+              onChange={(e) => setVars((p) => ({ ...p, [v]: e.target.value }))}
+            />
+          </div>
+        ))}
+      {flow?.variables.includes('provider_price') && (
+        <div className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
+          <span className="badge badge-blue mr-1">auto</span>
+          provider_price is filled from the bundle&apos;s provider price
         </div>
-      ))}
+      )}
 
       {error && <div className="badge badge-red mb-3 w-full justify-center py-2">{error}</div>}
       {result && <div className="badge badge-green mb-3 w-full justify-center py-2">{result}</div>}

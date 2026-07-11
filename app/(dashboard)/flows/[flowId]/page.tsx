@@ -6,6 +6,17 @@ import { api, Flow, FlowStep, StepAction, CatalogTree, Device } from '@/lib/api'
 
 // The variable name the storefront fills with the customer's number.
 const CUSTOMER_VAR = 'phone';
+// Auto-injected on bundle-linked runs: the bundle's provider price, already
+// dial-formatted by the backend (17.5 → "17*5", 0.5 → "05").
+const PROVIDER_PRICE_VAR = 'provider_price';
+
+/** Append a {token} as a new dial segment, keeping a trailing # last. */
+function insertDialToken(value: string, token: string): string {
+  const hash = value.endsWith('#');
+  let base = hash ? value.slice(0, -1) : value;
+  if (base && !base.endsWith('*')) base += '*';
+  return `${base}{${token}}${hash ? '#' : ''}`;
+}
 
 // UI step "kinds". CUSTOMER_NUMBER is a friendly wrapper that stores an
 // ENTER_VARIABLE step with value `phone` — so admins never type a magic word.
@@ -298,13 +309,36 @@ export default function FlowBuilderPage() {
                     <span className="badge badge-blue">auto</span>
                     Uses the number the customer enters in the store
                   </div>
+                ) : step.action === 'DIAL_USSD' ? (
+                  <div className="flex-1 flex items-center gap-1">
+                    <input
+                      className="input mono flex-1"
+                      value={step.value}
+                      placeholder="*300#  or  *831*{phone}*{provider_price}#"
+                      onChange={(e) => setStep(idx, { value: e.target.value })}
+                    />
+                    <button
+                      className="btn px-2 py-1 text-xs shrink-0"
+                      title="Insert the customer's number into the dial code"
+                      onClick={() => setStep(idx, { value: insertDialToken(step.value, CUSTOMER_VAR) })}
+                    >
+                      +phone
+                    </button>
+                    <button
+                      className="btn px-2 py-1 text-xs shrink-0"
+                      title="Insert the bundle's provider price (auto-formatted: 17.5 → 17*5, 0.5 → 05)"
+                      onClick={() => setStep(idx, { value: insertDialToken(step.value, PROVIDER_PRICE_VAR) })}
+                    >
+                      +price
+                    </button>
+                  </div>
                 ) : (
                   <input
                     className="input mono flex-1"
                     value={step.value}
                     placeholder={
                       meta.input === 'text'
-                        ? step.action === 'DIAL_USSD' ? '*300#' : '2'
+                        ? '2'
                         : meta.input === 'variable'
                         ? 'variable name'
                         : 'SEND / OK / CONTINUE'
@@ -347,8 +381,12 @@ export default function FlowBuilderPage() {
 
 /** Guardrails so a sellable flow can't quietly ship the wrong recipient. */
 function FlowWarnings({ flow }: { flow: Flow }) {
+  // The customer's number can arrive as a dedicated step OR embedded in a
+  // composite dial string like *831*{phone}*{provider_price}#.
   const hasCustomerStep = flow.steps.some(
-    (s) => s.action === 'ENTER_VARIABLE' && s.value === CUSTOMER_VAR,
+    (s) =>
+      (s.action === 'ENTER_VARIABLE' && s.value === CUSTOMER_VAR) ||
+      s.value.includes(`{${CUSTOMER_VAR}}`),
   );
   // A fixed-text step that looks like a phone number is almost certainly a
   // recipient hardcoded by mistake.

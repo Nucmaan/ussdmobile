@@ -78,6 +78,8 @@ export interface Company {
   _id: string;
   name: string;
   code: string;
+  /** Logo image URL shown next to the company in the storefront. */
+  logoUrl?: string;
   description: string;
   active: boolean;
 }
@@ -94,7 +96,10 @@ export interface Bundle {
   _id: string;
   package: string;
   name: string;
+  /** App price shown to clients in the storefront. */
   price: number;
+  /** Real telco price — dialed as {provider_price} and debited from the float. */
+  providerPrice?: number;
   currency: string;
   description: string;
   validity: string;
