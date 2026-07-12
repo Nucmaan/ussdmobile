@@ -158,6 +158,8 @@ export interface DeviceSim {
   slot: number;
   carrier: string;
   number: string;
+  /** Whether a mobile-money PIN is saved for this SIM (the PIN itself is never returned). */
+  pinSet?: boolean;
 }
 
 export interface Device {
@@ -263,6 +265,11 @@ export const api = {
   disableDevice: (id: string) => request(`/api/devices/${id}/disable`, { method: 'POST' }),
   enableDevice: (id: string) => request(`/api/devices/${id}/enable`, { method: 'POST' }),
   restartDevice: (id: string) => request(`/api/devices/${id}/restart`, { method: 'POST' }),
+  setSimPin: (id: string, slot: 1 | 2, pin: string) =>
+    request<{ ok: boolean; device: Device }>(`/api/devices/${id}/sim-pin`, {
+      method: 'PUT',
+      body: JSON.stringify({ slot, pin }),
+    }),
   deleteDevice: (id: string) => request(`/api/devices/${id}`, { method: 'DELETE' }),
 
   listFlows: () => request<{ flows: Flow[] }>('/api/flows'),

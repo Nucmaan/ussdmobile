@@ -9,6 +9,8 @@ const CUSTOMER_VAR = 'phone';
 // Auto-injected on bundle-linked runs: the bundle's provider price, already
 // dial-formatted by the backend (17.5 → "17*5", 0.5 → "05").
 const PROVIDER_PRICE_VAR = 'provider_price';
+// Auto-injected from the selected SIM's saved PIN (Devices → SIM PINs).
+const PIN_VAR = 'pin';
 
 /** Append a {token} as a new dial segment, keeping a trailing # last. */
 function insertDialToken(value: string, token: string): string {
@@ -20,12 +22,13 @@ function insertDialToken(value: string, token: string): string {
 
 // UI step "kinds". CUSTOMER_NUMBER is a friendly wrapper that stores an
 // ENTER_VARIABLE step with value `phone` — so admins never type a magic word.
-type StepKind = StepAction | 'CUSTOMER_NUMBER';
-const STEP_KINDS: { kind: StepKind; label: string; input: 'none' | 'text' | 'variable' | 'button' | 'customer' }[] = [
+type StepKind = StepAction | 'CUSTOMER_NUMBER' | 'SIM_PIN';
+const STEP_KINDS: { kind: StepKind; label: string; input: 'none' | 'text' | 'variable' | 'button' | 'customer' | 'simpin' }[] = [
   { kind: 'DIAL_USSD', label: 'Dial USSD code', input: 'text' },
   { kind: 'WAIT_RESPONSE', label: 'Wait for response', input: 'none' },
   { kind: 'ENTER_TEXT', label: 'Enter fixed text', input: 'text' },
   { kind: 'CUSTOMER_NUMBER', label: '★ Enter customer number', input: 'customer' },
+  { kind: 'SIM_PIN', label: '★ Enter SIM PIN', input: 'simpin' },
   { kind: 'ENTER_VARIABLE', label: 'Enter variable (advanced)', input: 'variable' },
   { kind: 'CLICK_BUTTON', label: 'Click button', input: 'button' },
   { kind: 'READ_RESPONSE', label: 'Read response', input: 'none' },
@@ -35,12 +38,14 @@ const STEP_KINDS: { kind: StepKind; label: string; input: 'none' | 'text' | 'var
 /** Map a stored step to its UI kind. */
 function kindOf(step: FlowStep): StepKind {
   if (step.action === 'ENTER_VARIABLE' && step.value === CUSTOMER_VAR) return 'CUSTOMER_NUMBER';
+  if (step.action === 'ENTER_VARIABLE' && step.value === PIN_VAR) return 'SIM_PIN';
   return step.action;
 }
 
 /** Turn a chosen UI kind into the concrete stored step fields. */
 function stepFromKind(kind: StepKind): Partial<FlowStep> {
   if (kind === 'CUSTOMER_NUMBER') return { action: 'ENTER_VARIABLE', value: CUSTOMER_VAR };
+  if (kind === 'SIM_PIN') return { action: 'ENTER_VARIABLE', value: PIN_VAR };
   return { action: kind as StepAction, value: '' };
 }
 
@@ -309,6 +314,11 @@ export default function FlowBuilderPage() {
                     <span className="badge badge-blue">auto</span>
                     Uses the number the customer enters in the store
                   </div>
+                ) : meta.input === 'simpin' ? (
+                  <div className="flex-1 text-xs flex items-center gap-2" style={{ color: '#93c5fd' }}>
+                    <span className="badge badge-blue">auto</span>
+                    Uses the PIN saved for the selected SIM (Devices → SIM PINs)
+                  </div>
                 ) : step.action === 'DIAL_USSD' ? (
                   <div className="flex-1 flex items-center gap-1">
                     <input
@@ -330,6 +340,13 @@ export default function FlowBuilderPage() {
                       onClick={() => setStep(idx, { value: insertDialToken(step.value, PROVIDER_PRICE_VAR) })}
                     >
                       +price
+                    </button>
+                    <button
+                      className="btn px-2 py-1 text-xs shrink-0"
+                      title="Insert the selected SIM's saved PIN (Devices → SIM PINs)"
+                      onClick={() => setStep(idx, { value: insertDialToken(step.value, PIN_VAR) })}
+                    >
+                      +pin
                     </button>
                   </div>
                 ) : (

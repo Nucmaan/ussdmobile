@@ -418,6 +418,11 @@ function SellModal({ bundle, onClose }: { bundle: Bundle; onClose: () => void })
     if (bundle.flow) api.getFlow(bundle.flow.flowId).then((r) => setFlow(r.flow));
   }, [bundle]);
 
+  // {pin} is auto-filled server-side when the selected SIM has a saved PIN.
+  const pinSaved = !!devices
+    .find((d) => d.deviceId === deviceId)
+    ?.sims?.find((s) => s.slot === simCard)?.pinSet;
+
   async function sell() {
     if (!bundle.flow) return;
     setError('');
@@ -455,6 +460,7 @@ function SellModal({ bundle, onClose }: { bundle: Bundle; onClose: () => void })
 
       {flow?.variables
         .filter((v) => v !== 'provider_price') // auto-filled by the backend from the bundle
+        .filter((v) => !(v === 'pin' && pinSaved)) // auto-filled from the SIM's saved PIN
         .map((v) => (
           <div key={v} className="mb-3">
             <label className="label">{v}</label>
@@ -470,6 +476,12 @@ function SellModal({ bundle, onClose }: { bundle: Bundle; onClose: () => void })
         <div className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
           <span className="badge badge-blue mr-1">auto</span>
           provider_price is filled from the bundle&apos;s provider price
+        </div>
+      )}
+      {pinSaved && flow?.variables.includes('pin') && (
+        <div className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
+          <span className="badge badge-blue mr-1">auto</span>
+          pin is filled from SIM {simCard}&apos;s saved PIN
         </div>
       )}
 

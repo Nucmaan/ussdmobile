@@ -11,6 +11,7 @@ export default function DevicesPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [runFor, setRunFor] = useState<Device | null>(null);
+  const [pinFor, setPinFor] = useState<Device | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -121,8 +122,8 @@ export default function DevicesPage() {
                   </td>
                   <td>{d.model || '—'}</td>
                   <td>{d.androidVersion || '—'}</td>
-                  <td className="mono text-xs">{sim1 ? `${sim1.number || '—'} ${sim1.carrier}` : '—'}</td>
-                  <td className="mono text-xs">{sim2 ? `${sim2.number || '—'} ${sim2.carrier}` : '—'}</td>
+                  <td className="mono text-xs">{sim1 ? `${sim1.number || '—'} ${sim1.carrier}${sim1.pinSet ? ' 🔒' : ''}` : '—'}</td>
+                  <td className="mono text-xs">{sim2 ? `${sim2.number || '—'} ${sim2.carrier}${sim2.pinSet ? ' 🔒' : ''}` : '—'}</td>
                   <td><StatusBadge status={d.status} /></td>
                   <td style={{ color: 'var(--muted)' }}>{timeAgo(d.lastHeartbeatAt)}</td>
                   <td>
@@ -133,6 +134,9 @@ export default function DevicesPage() {
                         onClick={() => setRunFor(d)}
                       >
                         Run USSD
+                      </button>
+                      <button className="btn" onClick={() => setPinFor(d)}>
+                        SIM PINs
                       </button>
                       <button className="btn" onClick={() => act(() => api.restartDevice(d.deviceId))}>
                         Restart
@@ -179,6 +183,121 @@ export default function DevicesPage() {
       {runFor && (
         <RunModal device={runFor} flows={flows} onClose={() => setRunFor(null)} />
       )}
+      {pinFor && (
+        <SimPinModal
+          device={pinFor}
+          onClose={() => setPinFor(null)}
+          onSaved={async () => {
+            await load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Save / clear the mobile-money PIN per SIM slot. Write-only: the API never
+ * returns a saved PIN, only whether one is set.
+ */
+function SimPinModal({
+  device,
+  onClose,
+  onSaved,
+}: {
+  device: Device;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [sims, setSims] = useState(device.sims);
+  const [pins, setPins] = useState<Record<number, string>>({});
+  const [error, setError] = useState('');
+  const [ok, setOk] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const slots: (1 | 2)[] = [1, 2];
+
+  async function save(slot: 1 | 2, pin: string) {
+    setError('');
+    setOk('');
+    setBusy(true);
+    try {
+      const res = await api.setSimPin(device.deviceId, slot, pin);
+      setSims(res.device.sims);
+      setPins((p) => ({ ...p, [slot]: '' }));
+      setOk(pin ? `SIM ${slot} PIN saved` : `SIM ${slot} PIN cleared`);
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save PIN');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}
+    >
+      <div className="card p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="font-medium mb-1">SIM PINs — {device.name || device.deviceId}</div>
+        <div className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
+          The PIN is stored encrypted and used automatically as {'{pin}'} when this SIM runs a flow.
+          It is never shown again after saving.
+        </div>
+
+        {slots.map((slot) => {
+          const sim = sims.find((s) => s.slot === slot);
+          return (
+            <div key={slot} className="mb-4">
+              <label className="label">
+                SIM {slot} {sim?.carrier ? `· ${sim.carrier}` : ''}{' '}
+                {sim?.pinSet ? (
+                  <span className="badge badge-green ml-1">PIN saved</span>
+                ) : (
+                  <span className="badge badge-amber ml-1">no PIN</span>
+                )}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  className="input mono flex-1"
+                  type="password"
+                  inputMode="numeric"
+                  placeholder={sim?.pinSet ? 'Enter new PIN to replace' : 'Enter PIN'}
+                  value={pins[slot] ?? ''}
+                  onChange={(e) => setPins((p) => ({ ...p, [slot]: e.target.value.replace(/\D/g, '') }))}
+                />
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || !(pins[slot] ?? '')}
+                  onClick={() => save(slot, pins[slot] ?? '')}
+                >
+                  Save
+                </button>
+                {sim?.pinSet && (
+                  <button
+                    className="btn btn-danger"
+                    disabled={busy}
+                    onClick={() => {
+                      if (confirm(`Clear the saved PIN for SIM ${slot}?`)) save(slot, '');
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {error && <div className="badge badge-red mb-3 w-full justify-center py-2">{error}</div>}
+        {ok && <div className="badge badge-green mb-3 w-full justify-center py-2">{ok}</div>}
+
+        <div className="flex justify-end">
+          <button className="btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -192,6 +311,8 @@ function RunModal({ device, flows, onClose }: { device: Device; flows: Flow[]; o
   const [busy, setBusy] = useState(false);
 
   const flow = flows.find((f) => f.flowId === flowId);
+  // {pin} is auto-filled server-side when the selected SIM has a saved PIN.
+  const pinSaved = !!device.sims.find((s) => s.slot === simCard)?.pinSet;
 
   async function run() {
     setError('');
@@ -232,6 +353,7 @@ function RunModal({ device, flows, onClose }: { device: Device; flows: Flow[]; o
 
         {flow?.variables
           .filter((v) => !(v === 'provider_price' && flow.bundle)) // bundle-linked: backend fills it
+          .filter((v) => !(v === 'pin' && pinSaved)) // saved SIM PIN: backend fills it
           .map((v) => (
             <div key={v} className="mb-3">
               <label className="label">{v}</label>
@@ -247,6 +369,12 @@ function RunModal({ device, flows, onClose }: { device: Device; flows: Flow[]; o
           <div className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
             <span className="badge badge-blue mr-1">auto</span>
             provider_price is filled from the linked bundle&apos;s provider price
+          </div>
+        )}
+        {pinSaved && flow?.variables.includes('pin') && (
+          <div className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
+            <span className="badge badge-blue mr-1">auto</span>
+            pin is filled from SIM {simCard}&apos;s saved PIN
           </div>
         )}
 
