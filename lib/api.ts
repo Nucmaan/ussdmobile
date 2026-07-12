@@ -270,6 +270,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ slot, pin }),
     }),
+  setSimCarrier: (id: string, slot: 1 | 2, carrier: string) =>
+    request<{ ok: boolean; device: Device }>(`/api/devices/${id}/sim-carrier`, {
+      method: 'PUT',
+      body: JSON.stringify({ slot, carrier }),
+    }),
   deleteDevice: (id: string) => request(`/api/devices/${id}`, { method: 'DELETE' }),
 
   listFlows: () => request<{ flows: Flow[] }>('/api/flows'),

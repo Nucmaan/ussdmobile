@@ -136,7 +136,7 @@ export default function DevicesPage() {
                         Run USSD
                       </button>
                       <button className="btn" onClick={() => setPinFor(d)}>
-                        SIM PINs
+                        SIM setup
                       </button>
                       <button className="btn" onClick={() => act(() => api.restartDevice(d.deviceId))}>
                         Restart
@@ -211,13 +211,16 @@ function SimPinModal({
 }) {
   const [sims, setSims] = useState(device.sims);
   const [pins, setPins] = useState<Record<number, string>>({});
+  const [carriers, setCarriers] = useState<Record<number, string>>(
+    () => Object.fromEntries(device.sims.map((s) => [s.slot, s.carrier ?? ''])),
+  );
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
 
   const slots: (1 | 2)[] = [1, 2];
 
-  async function save(slot: 1 | 2, pin: string) {
+  async function savePin(slot: 1 | 2, pin: string) {
     setError('');
     setOk('');
     setBusy(true);
@@ -234,6 +237,22 @@ function SimPinModal({
     }
   }
 
+  async function saveCarrier(slot: 1 | 2) {
+    setError('');
+    setOk('');
+    setBusy(true);
+    try {
+      const res = await api.setSimCarrier(device.deviceId, slot, carriers[slot] ?? '');
+      setSims(res.device.sims);
+      setOk(`SIM ${slot} carrier saved`);
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save carrier');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
@@ -241,24 +260,41 @@ function SimPinModal({
       onClick={onClose}
     >
       <div className="card p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <div className="font-medium mb-1">SIM PINs — {device.name || device.deviceId}</div>
+        <div className="font-medium mb-1">SIM settings — {device.name || device.deviceId}</div>
         <div className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
-          The PIN is stored encrypted and used automatically as {'{pin}'} when this SIM runs a flow.
-          It is never shown again after saving.
+          Carrier routes storefront orders (matched to the bundle&apos;s company). The PIN is stored
+          encrypted and used automatically as {'{pin}'} when this SIM runs a flow — never shown again.
         </div>
 
         {slots.map((slot) => {
           const sim = sims.find((s) => s.slot === slot);
           return (
-            <div key={slot} className="mb-4">
+            <div key={slot} className="mb-4 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
               <label className="label">
-                SIM {slot} {sim?.carrier ? `· ${sim.carrier}` : ''}{' '}
+                SIM {slot}{' '}
                 {sim?.pinSet ? (
                   <span className="badge badge-green ml-1">PIN saved</span>
                 ) : (
                   <span className="badge badge-amber ml-1">no PIN</span>
                 )}
               </label>
+
+              <div className="flex gap-2 mb-2">
+                <input
+                  className="input flex-1"
+                  placeholder="Carrier (e.g. Hormuud, SOMTEL)"
+                  value={carriers[slot] ?? ''}
+                  onChange={(e) => setCarriers((c) => ({ ...c, [slot]: e.target.value }))}
+                />
+                <button
+                  className="btn btn-primary"
+                  disabled={busy || (carriers[slot] ?? '') === (sim?.carrier ?? '')}
+                  onClick={() => saveCarrier(slot)}
+                >
+                  Save
+                </button>
+              </div>
+
               <div className="flex gap-2">
                 <input
                   className="input mono flex-1"
@@ -271,7 +307,7 @@ function SimPinModal({
                 <button
                   className="btn btn-primary"
                   disabled={busy || !(pins[slot] ?? '')}
-                  onClick={() => save(slot, pins[slot] ?? '')}
+                  onClick={() => savePin(slot, pins[slot] ?? '')}
                 >
                   Save
                 </button>
@@ -280,7 +316,7 @@ function SimPinModal({
                     className="btn btn-danger"
                     disabled={busy}
                     onClick={() => {
-                      if (confirm(`Clear the saved PIN for SIM ${slot}?`)) save(slot, '');
+                      if (confirm(`Clear the saved PIN for SIM ${slot}?`)) savePin(slot, '');
                     }}
                   >
                     Clear
