@@ -283,6 +283,12 @@ function SimPinModal({
                 <input
                   className="input flex-1"
                   placeholder="Carrier (e.g. Hormuud, SOMTEL)"
+                  name={`sim-carrier-${device.deviceId}-${slot}`}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  data-1p-ignore
+                  data-lpignore="true"
                   value={carriers[slot] ?? ''}
                   onChange={(e) => setCarriers((c) => ({ ...c, [slot]: e.target.value }))}
                 />
@@ -300,6 +306,9 @@ function SimPinModal({
                   className="input mono flex-1"
                   type="password"
                   inputMode="numeric"
+                  autoComplete="new-password"
+                  data-1p-ignore
+                  data-lpignore="true"
                   placeholder={sim?.pinSet ? 'Enter new PIN to replace' : 'Enter PIN'}
                   value={pins[slot] ?? ''}
                   onChange={(e) => setPins((p) => ({ ...p, [slot]: e.target.value.replace(/\D/g, '') }))}
