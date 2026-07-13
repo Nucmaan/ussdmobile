@@ -9,9 +9,13 @@ type Step = 'company' | 'package' | 'bundle' | 'checkout' | 'instructions' | 'st
 const PENDING = ['AWAITING_PAYMENT', 'PAID', 'DISPATCHED'];
 
 export default function StorePage() {
-  const [catalog, setCatalog] = useState<PublicCompany[]>([]);
-  const [payInfo, setPayInfo] = useState<{ paymentNumber: string; paymentLabel: string }>({ paymentNumber: '', paymentLabel: '' });
+  const [companies, setCompanies] = useState<PublicCompany[]>([]);
+  const [packages, setPackages] = useState<PublicPackage[]>([]);
+  const [bundles, setBundles] = useState<PublicBundle[]>([]);
+  const [payInfo, setPayInfo] = useState({ paymentNumber: '', paymentLabel: '' });
+
   const [loading, setLoading] = useState(true);
+  const [stepLoading, setStepLoading] = useState(false);
   const [err, setErr] = useState('');
 
   const [step, setStep] = useState<Step>('company');
@@ -26,9 +30,12 @@ export default function StorePage() {
   const [payment, setPayment] = useState<PublicPayment | null>(null);
 
   useEffect(() => {
-    Promise.all([publicApi.catalog(), publicApi.paymentInfo().catch(() => ({ paymentNumber: '', paymentLabel: '' }))])
+    Promise.all([
+      publicApi.companies(),
+      publicApi.paymentInfo().catch(() => ({ paymentNumber: '', paymentLabel: '' })),
+    ])
       .then(([c, info]) => {
-        setCatalog(c.catalog);
+        setCompanies(c.companies);
         setPayInfo(info);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : 'Failed to load'))
@@ -37,6 +44,39 @@ export default function StorePage() {
 
   const money = (b: PublicBundle) => (b.price ? `${b.currency} ${b.price}` : 'Free');
 
+  async function selectCompany(c: PublicCompany) {
+    setErr('');
+    setCompany(c);
+    setPkg(null);
+    setBundle(null);
+    setStep('package');
+    setStepLoading(true);
+    try {
+      const res = await publicApi.packages(c.id);
+      setPackages(res.packages);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load packages');
+    } finally {
+      setStepLoading(false);
+    }
+  }
+
+  async function selectPackage(p: PublicPackage) {
+    setErr('');
+    setPkg(p);
+    setBundle(null);
+    setStep('bundle');
+    setStepLoading(true);
+    try {
+      const res = await publicApi.bundles(p.id);
+      setBundles(res.bundles);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load bundles');
+    } finally {
+      setStepLoading(false);
+    }
+  }
+
   function toInstructions() {
     setErr('');
     if (recipient.trim().length < 4) return setErr('Enter the number to receive the data');
@@ -44,7 +84,6 @@ export default function StorePage() {
     setStep('instructions');
   }
 
-  // "I have paid" — create the pending payment; the SMS match delivers the data.
   async function iHavePaid() {
     if (!bundle) return;
     setErr('');
@@ -72,7 +111,6 @@ export default function StorePage() {
     }
   }
 
-  // Poll the payment until it settles.
   const poll = useCallback(async (id: string) => {
     try {
       const { payment } = await publicApi.paymentStatus(id);
@@ -98,6 +136,8 @@ export default function StorePage() {
     setCompany(null);
     setPkg(null);
     setBundle(null);
+    setPackages([]);
+    setBundles([]);
     setRecipient('');
     setPayer('');
     setPaymentId('');
@@ -129,39 +169,53 @@ export default function StorePage() {
         {err && <div className="badge badge-red mb-4 w-full justify-center py-2">{err}</div>}
         {loading && <div className="text-center py-20" style={{ color: 'var(--muted)' }}>Loading…</div>}
 
-        {!loading && catalog.length === 0 && step === 'company' && (
-          <div className="card p-8 text-center" style={{ color: 'var(--muted)' }}>No bundles available right now.</div>
+        {/* Companies */}
+        {step === 'company' && !loading && (
+          <>
+            {companies.length === 0 ? (
+              <div className="card p-8 text-center" style={{ color: 'var(--muted)' }}>No bundles available right now.</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {companies.map((c) => (
+                  <button key={c.id} className="card card-interactive p-5 text-left" onClick={() => selectCompany(c)}>
+                    <CompanyLogo company={c} />
+                    <div className="font-medium mt-2">{c.name}</div>
+                    <div className="text-xs" style={{ color: 'var(--muted)' }}>
+                      {c.packageCount} package{c.packageCount === 1 ? '' : 's'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        {step === 'company' && (
-          <div className="grid grid-cols-2 gap-3">
-            {catalog.map((c) => (
-              <button key={c.id} className="card card-interactive p-5 text-left" onClick={() => { setCompany(c); setStep('package'); }}>
-                <div className="brand-mark mb-2" style={{ background: 'linear-gradient(135deg,#334155,#475569)' }}>{c.name.slice(0, 1)}</div>
-                <div className="font-medium">{c.name}</div>
-                <div className="text-xs" style={{ color: 'var(--muted)' }}>{c.packages.length} packages</div>
-              </button>
-            ))}
-          </div>
-        )}
-
+        {/* Packages */}
         {step === 'package' && company && (
           <div className="flex flex-col gap-2">
-            {company.packages.map((p) => (
-              <button key={p.id} className="card card-interactive p-4 text-left flex items-center justify-between" onClick={() => { setPkg(p); setStep('bundle'); }}>
+            {stepLoading && <div className="text-center py-10" style={{ color: 'var(--muted)' }}>Loading…</div>}
+            {!stepLoading && packages.map((p) => (
+              <button key={p.id} className="card card-interactive p-4 text-left flex items-center justify-between" onClick={() => selectPackage(p)}>
                 <div>
                   <div className="font-medium">{p.name}</div>
-                  <div className="text-xs" style={{ color: 'var(--muted)' }}>{p.bundles.length} bundles</div>
+                  <div className="text-xs" style={{ color: 'var(--muted)' }}>
+                    {p.bundleCount} bundle{p.bundleCount === 1 ? '' : 's'}
+                  </div>
                 </div>
                 <span style={{ color: 'var(--muted)' }}>›</span>
               </button>
             ))}
+            {!stepLoading && packages.length === 0 && (
+              <div className="card p-8 text-center" style={{ color: 'var(--muted)' }}>No packages available.</div>
+            )}
           </div>
         )}
 
+        {/* Bundles */}
         {step === 'bundle' && pkg && (
           <div className="flex flex-col gap-2">
-            {pkg.bundles.map((b) => (
+            {stepLoading && <div className="text-center py-10" style={{ color: 'var(--muted)' }}>Loading…</div>}
+            {!stepLoading && bundles.map((b) => (
               <button key={b.id} className="card card-interactive p-4 text-left" onClick={() => { setBundle(b); setStep('checkout'); }}>
                 <div className="flex items-center justify-between">
                   <div className="font-medium">{b.name}</div>
@@ -172,9 +226,13 @@ export default function StorePage() {
                 </div>
               </button>
             ))}
+            {!stepLoading && bundles.length === 0 && (
+              <div className="card p-8 text-center" style={{ color: 'var(--muted)' }}>No bundles available.</div>
+            )}
           </div>
         )}
 
+        {/* Checkout */}
         {step === 'checkout' && bundle && (
           <div className="card p-5">
             <div className="text-sm" style={{ color: 'var(--muted)' }}>{company?.name} · {pkg?.name}</div>
@@ -198,6 +256,7 @@ export default function StorePage() {
           </div>
         )}
 
+        {/* Payment instructions */}
         {step === 'instructions' && bundle && (
           <div className="card p-5 text-center">
             <div className="eyebrow">Amount to pay</div>
@@ -207,7 +266,7 @@ export default function StorePage() {
               <div className="text-xs" style={{ color: 'var(--muted)' }}>Send the money to</div>
               {payInfo.paymentNumber ? (
                 <>
-                  <div className="text-2xl font-bold mono mt-1" style={{ letterSpacing: '0.02em' }}>{payInfo.paymentNumber}</div>
+                  <div className="text-2xl font-bold mono mt-1">{payInfo.paymentNumber}</div>
                   {payInfo.paymentLabel && <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{payInfo.paymentLabel}</div>}
                 </>
               ) : (
@@ -230,6 +289,34 @@ export default function StorePage() {
 
         {step === 'status' && payment && <PaymentResult payment={payment} onDone={reset} />}
       </div>
+    </div>
+  );
+}
+
+/** Company logo with a letter-avatar fallback when no logo is set or it fails. */
+function CompanyLogo({ company }: { company: PublicCompany }) {
+  const [broken, setBroken] = useState(false);
+  if (company.logoUrl && !broken) {
+    return (
+      /* eslint-disable-next-line @next/next/no-img-element */
+      <img
+        src={company.logoUrl}
+        alt={company.name}
+        onError={() => setBroken(true)}
+        style={{
+          width: 44,
+          height: 44,
+          objectFit: 'contain',
+          borderRadius: 10,
+          background: 'var(--panel-2)',
+          padding: 4,
+        }}
+      />
+    );
+  }
+  return (
+    <div className="brand-mark" style={{ background: 'linear-gradient(135deg,#334155,#475569)' }}>
+      {company.name.slice(0, 1)}
     </div>
   );
 }

@@ -207,13 +207,14 @@ export interface PublicBundle {
 export interface PublicPackage {
   id: string;
   name: string;
-  bundles: PublicBundle[];
+  bundleCount: number;
 }
 export interface PublicCompany {
   id: string;
   name: string;
   code: string;
-  packages: PublicPackage[];
+  logoUrl: string;
+  packageCount: number;
 }
 export interface PublicOrderResult {
   orderId: string;
@@ -263,7 +264,15 @@ export interface PublicPayment {
 }
 
 export const publicApi = {
-  catalog: () => publicRequest<{ catalog: PublicCompany[] }>('/api/public/catalog'),
+  companies: () => publicRequest<{ companies: PublicCompany[] }>('/api/public/companies'),
+  packages: (companyId: string) =>
+    publicRequest<{ company: { id: string; name: string }; packages: PublicPackage[] }>(
+      `/api/public/companies/${companyId}/packages`,
+    ),
+  bundles: (packageId: string) =>
+    publicRequest<{ package: { id: string; name: string }; bundles: PublicBundle[] }>(
+      `/api/public/packages/${packageId}/bundles`,
+    ),
   order: (bundleId: string, phone: string) =>
     publicRequest<PublicOrderResult>('/api/public/order', {
       method: 'POST',
