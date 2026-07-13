@@ -36,6 +36,10 @@ const NAV_GROUPS: { section: string; items: NavEntry[] }[] = [
     section: 'Access',
     items: [{ href: '/gateway-users', label: 'Gateway Users', icon: 'users' }],
   },
+  {
+    section: 'System',
+    items: [{ href: '/settings', label: 'Settings', icon: 'settings' }],
+  },
 ];
 const ALL_NAV = NAV_GROUPS.flatMap((g) => g.items);
 

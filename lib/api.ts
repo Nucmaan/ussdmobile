@@ -242,6 +242,26 @@ async function publicRequest<T>(path: string, opts: RequestInit = {}): Promise<T
   return body as T;
 }
 
+export interface PayInitResult {
+  paymentId: string;
+  amount: number;
+  currency: string;
+  paymentNumber: string;
+  paymentLabel: string;
+}
+export interface PublicPayment {
+  paymentId: string;
+  status: string;
+  message: string;
+  bundleName: string;
+  companyName: string;
+  recipientPhone: string;
+  amount: number;
+  currency: string;
+  orderId: string;
+  expiresAt: string;
+}
+
 export const publicApi = {
   catalog: () => publicRequest<{ catalog: PublicCompany[] }>('/api/public/catalog'),
   order: (bundleId: string, phone: string) =>
@@ -251,6 +271,15 @@ export const publicApi = {
     }),
   orderStatus: (orderId: string) =>
     publicRequest<{ order: PublicOrder }>(`/api/public/order/${orderId}`),
+  paymentInfo: () =>
+    publicRequest<{ paymentNumber: string; paymentLabel: string }>('/api/public/payment-info'),
+  pay: (bundleId: string, recipientPhone: string, payerPhone: string) =>
+    publicRequest<PayInitResult>('/api/public/order/pay', {
+      method: 'POST',
+      body: JSON.stringify({ bundleId, recipientPhone, payerPhone }),
+    }),
+  paymentStatus: (paymentId: string) =>
+    publicRequest<{ payment: PublicPayment }>(`/api/public/order/pay/${paymentId}`),
 };
 
 // ---- Endpoints ----
@@ -274,6 +303,14 @@ export const api = {
     request<{ ok: boolean; device: Device }>(`/api/devices/${id}/sim-carrier`, {
       method: 'PUT',
       body: JSON.stringify({ slot, carrier }),
+    }),
+
+  getSettings: () =>
+    request<{ settings: { paymentNumber: string; paymentLabel: string } }>('/api/settings'),
+  updateSettings: (patch: { paymentNumber?: string; paymentLabel?: string }) =>
+    request<{ settings: { paymentNumber: string; paymentLabel: string } }>('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify(patch),
     }),
   deleteDevice: (id: string) => request(`/api/devices/${id}`, { method: 'DELETE' }),
 

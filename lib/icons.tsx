@@ -88,6 +88,12 @@ const PATHS: Record<string, React.ReactNode> = {
   ),
   check: <path d="M4 12.5l5 5 11-11" />,
   bolt: <path d="M13 2 4 14h6l-1 8 9-12h-6z" />,
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.2 7l1.9 1.1M17.9 15.9l1.9 1.1M4.2 17l1.9-1.1M17.9 8.1l1.9-1.1" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof PATHS;

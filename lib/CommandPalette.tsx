@@ -126,6 +126,7 @@ export function useDefaultCommands(): CommandItem[] {
       { id: 'wallets', label: 'Go to Wallets & Orders', hint: 'Finance', icon: 'wallet', run: () => router.push('/wallets') },
       { id: 'flows', label: 'Go to Pipelines', hint: 'Flows', icon: 'pipeline', run: () => router.push('/flows') },
       { id: 'transactions', label: 'Go to Transactions', hint: 'Runs', icon: 'transactions', run: () => router.push('/transactions') },
+      { id: 'settings', label: 'Go to Settings', hint: 'System', icon: 'settings', run: () => router.push('/settings') },
       { id: 'new-flow', label: 'Create new Pipeline', hint: 'Action', icon: 'plus', run: () => router.push('/flows/new') },
     ],
     [router],
