@@ -195,8 +195,9 @@ export default function StorePage() {
           <div className="flex flex-col gap-2">
             {stepLoading && <div className="text-center py-10" style={{ color: 'var(--muted)' }}>Loading…</div>}
             {!stepLoading && packages.map((p) => (
-              <button key={p.id} className="card card-interactive p-4 text-left flex items-center justify-between" onClick={() => selectPackage(p)}>
-                <div>
+              <button key={p.id} className="card card-interactive p-4 text-left flex items-center gap-3" onClick={() => selectPackage(p)}>
+                <Thumb src={p.imageUrl} alt={p.name} />
+                <div className="flex-1 min-w-0">
                   <div className="font-medium">{p.name}</div>
                   <div className="text-xs" style={{ color: 'var(--muted)' }}>
                     {p.bundleCount} bundle{p.bundleCount === 1 ? '' : 's'}
@@ -216,13 +217,16 @@ export default function StorePage() {
           <div className="flex flex-col gap-2">
             {stepLoading && <div className="text-center py-10" style={{ color: 'var(--muted)' }}>Loading…</div>}
             {!stepLoading && bundles.map((b) => (
-              <button key={b.id} className="card card-interactive p-4 text-left" onClick={() => { setBundle(b); setStep('checkout'); }}>
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{b.name}</div>
-                  <div className="font-semibold" style={{ color: 'var(--accent-2)' }}>{money(b)}</div>
-                </div>
-                <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                  {b.description}{b.validity ? ` · ${b.validity}` : ''}
+              <button key={b.id} className="card card-interactive p-4 text-left flex items-center gap-3" onClick={() => { setBundle(b); setStep('checkout'); }}>
+                <Thumb src={b.imageUrl} alt={b.name} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium">{b.name}</div>
+                    <div className="font-semibold" style={{ color: 'var(--accent-2)' }}>{money(b)}</div>
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                    {b.description}{b.validity ? ` · ${b.validity}` : ''}
+                  </div>
                 </div>
               </button>
             ))}
@@ -318,6 +322,21 @@ function CompanyLogo({ company }: { company: PublicCompany }) {
     <div className="brand-mark" style={{ background: 'linear-gradient(135deg,#334155,#475569)' }}>
       {company.name.slice(0, 1)}
     </div>
+  );
+}
+
+/** Small optional thumbnail for a package/bundle; renders nothing without a valid image. */
+function Thumb({ src, alt }: { src?: string; alt: string }) {
+  const [broken, setBroken] = useState(false);
+  if (!src || broken) return null;
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setBroken(true)}
+      style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 8, background: 'var(--panel-2)', padding: 3, flexShrink: 0 }}
+    />
   );
 }
 

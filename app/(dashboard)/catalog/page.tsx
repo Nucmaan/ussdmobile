@@ -277,7 +277,7 @@ function EntityModal({
     if (editing.kind === 'company')
       return { name: editing.data?.name ?? '', code: editing.data?.code ?? '', logoUrl: editing.data?.logoUrl ?? '', description: editing.data?.description ?? '', active: editing.data?.active ?? true };
     if (editing.kind === 'package')
-      return { name: editing.data?.name ?? '', description: editing.data?.description ?? '', active: editing.data?.active ?? true };
+      return { name: editing.data?.name ?? '', description: editing.data?.description ?? '', imageUrl: editing.data?.imageUrl ?? '', active: editing.data?.active ?? true };
     return {
       name: editing.data?.name ?? '',
       price: editing.data?.price ?? 0,
@@ -285,6 +285,7 @@ function EntityModal({
       currency: editing.data?.currency ?? 'USD',
       description: editing.data?.description ?? '',
       validity: editing.data?.validity ?? '',
+      imageUrl: editing.data?.imageUrl ?? '',
       active: editing.data?.active ?? true,
     };
   });
@@ -380,6 +381,29 @@ function EntityModal({
 
       <label className="label mt-3">Description</label>
       <input className="input mb-3" value={String(form.description)} onChange={(e) => set('description', e.target.value)} placeholder={editing.kind === 'bundle' ? 'unlimited data' : ''} />
+
+      {(editing.kind === 'package' || editing.kind === 'bundle') && (
+        <>
+          <label className="label">Image URL (shown in the store)</label>
+          <input
+            className="input mb-2 mono"
+            value={String(form.imageUrl ?? '')}
+            onChange={(e) => set('imageUrl', e.target.value)}
+            placeholder="https://example.com/image.png"
+          />
+          {!!form.imageUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={String(form.imageUrl)}
+              alt="Image preview"
+              className="mb-3 rounded"
+              style={{ height: 48, width: 48, objectFit: 'contain', background: 'var(--panel-2)', border: '1px solid var(--border)' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+              onLoad={(e) => { (e.target as HTMLImageElement).style.opacity = '1'; }}
+            />
+          )}
+        </>
+      )}
 
       <label className="flex items-center gap-2 text-sm mb-4">
         <input type="checkbox" checked={Boolean(form.active)} onChange={(e) => set('active', e.target.checked)} />

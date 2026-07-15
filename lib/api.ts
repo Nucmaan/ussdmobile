@@ -89,6 +89,8 @@ export interface Package {
   company: string;
   name: string;
   description: string;
+  /** Optional image URL shown in the storefront. */
+  imageUrl?: string;
   active: boolean;
 }
 
@@ -103,6 +105,8 @@ export interface Bundle {
   currency: string;
   description: string;
   validity: string;
+  /** Optional image URL shown in the storefront. */
+  imageUrl?: string;
   active: boolean;
   flow?: { flowId: string; name: string } | null;
 }
@@ -203,10 +207,12 @@ export interface PublicBundle {
   currency: string;
   description: string;
   validity: string;
+  imageUrl?: string;
 }
 export interface PublicPackage {
   id: string;
   name: string;
+  imageUrl?: string;
   bundleCount: number;
 }
 export interface PublicCompany {
